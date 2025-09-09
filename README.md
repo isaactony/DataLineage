@@ -34,7 +34,7 @@ This project demonstrates a complete data lineage solution with:
 
 ### Available Jobs
 
-The project includes several example jobs that demonstrate different data lineage scenarios:
+The project includes 8 comprehensive example jobs that demonstrate different data lineage scenarios:
 
 1. **Customer Data Processing** (`emit_lineage.py`)
    - Simple ETL job processing customer data
@@ -54,6 +54,26 @@ The project includes several example jobs that demonstrate different data lineag
    - Monitors data quality across multiple datasets
    - Inputs: raw_customers, raw_orders, raw_transactions
    - Outputs: data_quality_report, data_lineage_summary, quality_alerts
+
+5. **Real-time Analytics Pipeline** (`real_time_analytics.py`)
+   - Streaming data processing for user analytics
+   - Inputs: user_events_stream, user_profiles, product_catalog
+   - Outputs: real_time_user_analytics, trending_content, personalization_models
+
+6. **Machine Learning Pipeline** (`ml_pipeline.py`)
+   - ML model training and prediction pipeline
+   - Inputs: training_data, feature_store, model_config
+   - Outputs: trained_model, model_predictions, model_metrics, feature_importance
+
+7. **Data Lake Ingestion** (`data_lake_ingestion.py`)
+   - Multi-source data ingestion into data lake
+   - Inputs: external_api_data, log_files, sensor_data, social_media_feeds
+   - Outputs: raw_data_lake, structured_data_lake, data_lake_metadata, data_lineage_tracking
+
+8. **Compliance & Governance** (`compliance_governance.py`)
+   - Compliance monitoring and governance tracking
+   - Inputs: sensitive_data_inventory, data_access_logs, regulatory_requirements, data_lineage_metadata
+   - Outputs: compliance_report, data_privacy_assessment, governance_dashboard, audit_trail
 
 ## Quick Start
 
@@ -111,6 +131,10 @@ python emit_lineage.py                    # Customer data processing
 python order_processing.py                # Order processing with multiple inputs
 python financial_processing.py            # Financial data with currency conversion
 python data_quality_monitoring.py         # Data quality monitoring
+python real_time_analytics.py             # Real-time analytics pipeline
+python ml_pipeline.py                     # Machine learning pipeline
+python data_lake_ingestion.py             # Data lake ingestion
+python compliance_governance.py           # Compliance & governance
 
 # Or run all jobs at once
 cd ../..
