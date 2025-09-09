@@ -1,6 +1,7 @@
 # Data Lineage & Audit Trail
 
 A comprehensive data lineage tracking system that captures lineage from Python jobs using OpenLineage, stores it in Marquez, and provides a live lineage graph visualization.
+image.png
 
 ## How It Works
 
