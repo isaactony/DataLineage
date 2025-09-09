@@ -5,8 +5,8 @@
 
 set -e
 
-echo "🧪 Data Lineage & Audit Trail - Test Suite"
-echo "=========================================="
+echo "Data Lineage & Audit Trail - Test Suite"
+echo "========================================"
 
 # Colors for output
 RED='\033[0;31m'
@@ -16,20 +16,20 @@ NC='\033[0m' # No Color
 
 # Test functions
 test_passed() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}[PASS] $1${NC}"
 }
 
 test_failed() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}[FAIL] $1${NC}"
     exit 1
 }
 
 test_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    echo -e "${YELLOW}[WARN] $1${NC}"
 }
 
 # Check if services are running
-echo "🔍 Checking service status..."
+echo "Checking service status..."
 if ! docker-compose ps | grep -q "Up"; then
     test_failed "Services are not running. Please run 'docker-compose up -d' first."
 fi
@@ -37,7 +37,7 @@ test_passed "Services are running"
 
 # Test 1: Service Health Checks
 echo ""
-echo "🏥 Running service health checks..."
+echo "Running service health checks..."
 
 # PostgreSQL
 if docker-compose exec postgres pg_isready -U marquez > /dev/null 2>&1; then
@@ -62,7 +62,7 @@ fi
 
 # Test 2: dbt Functionality
 echo ""
-echo "🔄 Testing dbt functionality..."
+echo "Testing dbt functionality..."
 
 # dbt seed
 if docker-compose exec dbt dbt seed > /dev/null 2>&1; then
@@ -87,7 +87,7 @@ fi
 
 # Test 3: Python Lineage Jobs
 echo ""
-echo "🐍 Testing Python lineage jobs..."
+echo "Testing Python lineage jobs..."
 
 # Basic lineage emission
 if docker-compose exec python-jobs python emit_lineage.py > /dev/null 2>&1; then
@@ -105,7 +105,7 @@ fi
 
 # Test 4: Lineage Verification
 echo ""
-echo "🔍 Verifying lineage in Marquez..."
+echo "Verifying lineage in Marquez..."
 
 # Check datasets
 DATASETS=$(curl -s http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets | jq -r '.datasets[].name' | wc -l)
@@ -135,7 +135,7 @@ done
 
 # Test 5: Unit Tests
 echo ""
-echo "🧪 Running unit tests..."
+echo "Running unit tests..."
 
 if docker-compose exec python-jobs pytest lineage/tests/test_emit_lineage.py -v > /dev/null 2>&1; then
     test_passed "Unit tests passed"
@@ -145,7 +145,7 @@ fi
 
 # Test 6: Integration Tests
 echo ""
-echo "🔗 Running integration tests..."
+echo "Running integration tests..."
 
 if docker-compose exec python-jobs pytest lineage/tests/test_emit_lineage.py -m integration -v > /dev/null 2>&1; then
     test_passed "Integration tests passed"
@@ -155,7 +155,7 @@ fi
 
 # Test 7: Data Quality Checks
 echo ""
-echo "📊 Running data quality checks..."
+echo "Running data quality checks..."
 
 # Check if data exists in database
 CUSTOMER_COUNT=$(docker-compose exec postgres psql -U marquez -d marquez -t -c "SELECT COUNT(*) FROM customers;" 2>/dev/null | tr -d ' ')
@@ -174,7 +174,7 @@ fi
 
 # Test 8: Performance Tests
 echo ""
-echo "⚡ Running performance tests..."
+echo "Running performance tests..."
 
 # Test API response time
 API_RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' http://localhost:5000/api/v1/health)
@@ -186,7 +186,7 @@ fi
 
 # Test 9: Security Checks
 echo ""
-echo "🔒 Running security checks..."
+echo " Running security checks..."
 
 # Check if default passwords are still in use
 if grep -q "marquez:marquez" docker-compose.yml; then
@@ -219,14 +219,14 @@ fi
 
 # Summary
 echo ""
-echo "📋 Test Summary"
+echo " Test Summary"
 echo "==============="
-echo "✅ All critical tests passed!"
+echo " All critical tests passed!"
 echo ""
-echo "🎯 Next Steps:"
+echo " Next Steps:"
 echo "   1. Open http://localhost:3000 to view the lineage graph"
 echo "   2. Explore the Marquez UI to see datasets and jobs"
 echo "   3. Run additional tests: docker-compose exec python-jobs pytest -v"
 echo "   4. Check the logs: docker-compose logs"
 echo ""
-echo "🚀 Your Data Lineage & Audit Trail system is ready!"
+echo " Your Data Lineage & Audit Trail system is ready!"
