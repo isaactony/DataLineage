@@ -1,0 +1,27 @@
+server:
+  applicationConnectors:
+    - type: http
+      port: 5000
+  adminConnectors:
+    - type: http
+      port: 5001
+
+db:
+  driverClass: org.postgresql.Driver
+  url: jdbc:postgresql://postgres:5432/marquez
+  user: marquez
+  password: marquez
+  properties:
+    charSet: UTF-8
+  maxSize: 25
+  minSize: 5
+
+migrateOnStartup: true
+
+logging:
+  level: INFO
+  appenders:
+    - type: console
+      threshold: ALL
+      timeZone: UTC
+      target: stdout

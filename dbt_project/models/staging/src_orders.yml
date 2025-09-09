@@ -1,0 +1,63 @@
+version: 2
+
+sources:
+  - name: raw_data
+    description: "Raw data sources for the data lineage demo"
+    tables:
+      - name: customers
+        description: "Customer master data"
+        columns:
+          - name: customer_id
+            description: "Unique customer identifier"
+            tests:
+              - unique
+              - not_null
+          - name: first_name
+            description: "Customer first name"
+            tests:
+              - not_null
+          - name: last_name
+            description: "Customer last name"
+            tests:
+              - not_null
+          - name: email
+            description: "Customer email address"
+            tests:
+              - not_null
+              - dbt_expectations.expect_column_values_to_be_unique
+          - name: created_at
+            description: "Customer creation timestamp"
+            tests:
+              - not_null
+      - name: orders
+        description: "Order transaction data"
+        columns:
+          - name: order_id
+            description: "Unique order identifier"
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            description: "Foreign key to customers table"
+            tests:
+              - not_null
+              - relationships:
+                  to: source('raw_data', 'customers')
+                  field: customer_id
+          - name: order_date
+            description: "Date when order was placed"
+            tests:
+              - not_null
+          - name: amount
+            description: "Order total amount"
+            tests:
+              - not_null
+              - dbt_expectations.expect_column_values_to_be_between:
+                  min_value: 0
+                  max_value: 10000
+          - name: status
+            description: "Order status"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['pending', 'completed', 'cancelled', 'shipped']

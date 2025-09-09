@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: stg_orders
+    tests:
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 20
+          max_value: 30
+      - dbt_expectations.expect_column_values_to_be_unique:
+          column_name: order_id
+      - dbt_expectations.expect_column_values_to_not_be_null:
+          column_name: customer_id
+      - dbt_expectations.expect_column_values_to_be_between:
+          column_name: cleaned_amount
+          min_value: 0
+          max_value: 1000
+
+  - name: dim_customers
+    tests:
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 8
+          max_value: 12
+      - dbt_expectations.expect_column_values_to_be_unique:
+          column_name: customer_id
+      - dbt_expectations.expect_column_values_to_not_be_null:
+          column_name: email
+      - dbt_expectations.expect_column_values_to_be_in_set:
+          column_name: customer_segment
+          value_set: ['new', 'regular', 'frequent', 'vip']
+
+  - name: fct_orders
+    tests:
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 20
+          max_value: 30
+      - dbt_expectations.expect_column_values_to_be_unique:
+          column_name: order_id
+      - dbt_expectations.expect_column_values_to_not_be_null:
+          column_name: order_date
+      - dbt_expectations.expect_column_values_to_be_in_set:
+          column_name: standardized_status
+          value_set: ['pending', 'completed', 'cancelled', 'shipped', 'unknown']

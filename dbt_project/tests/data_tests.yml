@@ -1,0 +1,38 @@
+-- Custom data quality tests for the data lineage audit project
+
+-- Test: Ensure all customers have at least one order
+select 
+    customer_id,
+    count(*) as order_count
+from {{ ref('fct_orders') }}
+group by customer_id
+having count(*) = 0
+
+-- Test: Ensure order amounts are reasonable
+select 
+    order_id,
+    cleaned_amount
+from {{ ref('fct_orders') }}
+where cleaned_amount <= 0 or cleaned_amount > 1000
+
+-- Test: Ensure customer segments are correctly assigned
+select 
+    customer_id,
+    customer_segment,
+    total_orders
+from {{ ref('dim_customers') }}
+where (customer_segment = 'new' and total_orders > 0) or
+      (customer_segment = 'regular' and total_orders not between 1 and 3) or
+      (customer_segment = 'frequent' and total_orders not between 4 and 10) or
+      (customer_segment = 'vip' and total_orders <= 10)
+
+-- Test: Ensure order value categories are correctly calculated
+select 
+    order_id,
+    order_value_category,
+    cleaned_amount,
+    customer_avg_order_value
+from {{ ref('fct_orders') }}
+where (order_value_category = 'high_value' and cleaned_amount <= customer_avg_order_value * 1.5) or
+      (order_value_category = 'low_value' and cleaned_amount >= customer_avg_order_value * 0.5) or
+      (order_value_category = 'normal_value' and (cleaned_amount > customer_avg_order_value * 1.5 or cleaned_amount < customer_avg_order_value * 0.5))

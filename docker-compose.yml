@@ -1,0 +1,146 @@
+services:
+  # PostgreSQL database for Marquez metadata storage
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: marquez
+      POSTGRES_PASSWORD: marquez
+      POSTGRES_DB: marquez
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marquez"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Marquez API server
+  marquez:
+    image: marquezproject/marquez:latest
+    platform: linux/amd64
+    environment:
+      MARQUEZ_PORT: 5000
+      MARQUEZ_ADMIN_PORT: 5001
+      MARQUEZ_HOST: 0.0.0.0
+      MARQUEZ_ADMIN_HOST: 0.0.0.0
+      MARQUEZ_DB_HOST: postgres
+      MARQUEZ_DB_PORT: 5432
+      MARQUEZ_DB_NAME: marquez
+      MARQUEZ_DB_USER: marquez
+      MARQUEZ_DB_PASSWORD: marquez
+      MARQUEZ_MIGRATE_ON_STARTUP: "true"
+      MARQUEZ_CONFIG: /app/config.yml
+    volumes:
+      - ./marquez-config.yml:/app/config.yml
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5002:5000"
+      - "5003:5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/v1/namespaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Marquez UI
+  marquez-web:
+    image: marquezproject/marquez-web:latest
+    platform: linux/amd64
+    environment:
+      MARQUEZ_API: http://marquez:5000
+      MARQUEZ_HOST: marquez
+      MARQUEZ_PORT: 5000
+      WEB_PORT: 3000
+    depends_on:
+      marquez:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+  # dbt service for SQL transformations
+  dbt:
+    build:
+      context: ./dbt_project
+      dockerfile: Dockerfile
+    environment:
+      DBT_PROFILES_DIR: /app
+      DBT_PROJECT_DIR: /app
+    volumes:
+      - ./dbt_project:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: tail -f /dev/null
+    profiles:
+      - marquez
+
+  # Python jobs service for OpenLineage SDK
+  python-jobs:
+    build:
+      context: ./lineage/python_jobs
+      dockerfile: Dockerfile
+    environment:
+      MARQUEZ_URL: http://marquez:5000
+      OPENLINEAGE_URL: http://marquez:5000
+    volumes:
+      - ./lineage/python_jobs:/app
+    depends_on:
+      marquez:
+        condition: service_healthy
+    command: tail -f /dev/null
+    profiles:
+      - marquez
+
+  # Airflow service (optional)
+  airflow:
+    build:
+      context: ./lineage/airflow
+      dockerfile: Dockerfile
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql://marquez:marquez@postgres:5432/marquez
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__PLUGINS_FOLDER: /opt/airflow/plugins
+      AIRFLOW__CORE__AIRFLOW_HOME: /opt/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
+      AIRFLOW__WEBSERVER__WEB_SERVER_PORT: 8080
+      AIRFLOW__WEBSERVER__BASE_URL: http://localhost:8080
+      AIRFLOW__WEBSERVER__WEB_SERVER_HOST: 0.0.0.0
+      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 30
+      AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+      AIRFLOW__OPENLINEAGE__ENABLED: "True"
+      AIRFLOW__OPENLINEAGE__NAMESPACE: "data-lineage-audit"
+      AIRFLOW__OPENLINEAGE__TRANSPORT: "http"
+      AIRFLOW__OPENLINEAGE__URL: "http://marquez:5000"
+    volumes:
+      - ./lineage/airflow/dags:/opt/airflow/dags
+      - ./lineage/airflow/logs:/opt/airflow/logs
+      - ./lineage/airflow/plugins:/opt/airflow/plugins
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      marquez:
+        condition: service_healthy
+    command: >
+      bash -c "
+        airflow db init &&
+        airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin &&
+        airflow webserver --port 8080 &
+        airflow scheduler
+      "
+    profiles:
+      - airflow
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: data-lineage-network

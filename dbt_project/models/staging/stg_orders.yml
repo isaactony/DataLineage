@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: stg_orders
+    description: "Staging model for orders data with cleaning and standardization"
+    columns:
+      - name: order_id
+        description: "Unique order identifier"
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "Foreign key to customers table"
+        tests:
+          - not_null
+      - name: order_date
+        description: "Date when order was placed"
+        tests:
+          - not_null
+      - name: amount
+        description: "Original order amount"
+        tests:
+          - not_null
+      - name: cleaned_amount
+        description: "Cleaned order amount (negative values set to 0)"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 10000
+      - name: standardized_status
+        description: "Standardized order status"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['pending', 'completed', 'cancelled', 'shipped', 'unknown']
+      - name: processed_at
+        description: "Timestamp when the record was processed"
+        tests:
+          - not_null

@@ -1,0 +1,58 @@
+graph TB
+    subgraph "Data Sources"
+        A[Raw Customers CSV]
+        B[Raw Orders CSV]
+    end
+    
+    subgraph "dbt Transformations"
+        C[stg_orders]
+        D[dim_customers]
+        E[fct_orders]
+    end
+    
+    subgraph "Python Jobs"
+        F[Customer Processing Job]
+        G[Order Transform Job]
+    end
+    
+    subgraph "Output Datasets"
+        H[enriched_orders]
+        I[order_summary]
+    end
+    
+    subgraph "Marquez Backend"
+        J[PostgreSQL Database]
+        K[Marquez API]
+        L[Marquez UI]
+    end
+    
+    subgraph "Orchestration"
+        M[Airflow DAG]
+    end
+    
+    A --> C
+    B --> C
+    A --> D
+    C --> E
+    D --> E
+    
+    F --> H
+    G --> H
+    G --> I
+    
+    C --> K
+    D --> K
+    E --> K
+    F --> K
+    G --> K
+    H --> K
+    I --> K
+    
+    K --> J
+    K --> L
+    
+    M --> C
+    M --> D
+    M --> E
+    M --> F
+    M --> G

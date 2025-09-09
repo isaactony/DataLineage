@@ -1,0 +1,340 @@
+name: Data Lineage & Audit Trail CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  MARQUEZ_URL: http://localhost:5000
+  MARQUEZ_NAMESPACE: data-lineage-audit
+  POSTGRES_HOST: localhost
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: marquez
+  POSTGRES_USER: marquez
+  POSTGRES_PASSWORD: marquez
+
+jobs:
+  # Lint and format check
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black isort mypy
+          pip install -r lineage/python_jobs/requirements.txt
+
+      - name: Lint with flake8
+        run: |
+          flake8 lineage/python_jobs/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 lineage/python_jobs/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Check code formatting with black
+        run: |
+          black --check lineage/python_jobs/
+
+      - name: Check import sorting with isort
+        run: |
+          isort --check-only lineage/python_jobs/
+
+      - name: Type check with mypy
+        run: |
+          mypy lineage/python_jobs/ --ignore-missing-imports
+
+  # Unit tests
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r lineage/python_jobs/requirements.txt
+
+      - name: Run unit tests
+        run: |
+          cd lineage/tests
+          pytest test_emit_lineage.py -m "not integration" --cov=../python_jobs --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./lineage/tests/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  # dbt tests
+  dbt-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: marquez
+          POSTGRES_PASSWORD: marquez
+          POSTGRES_DB: marquez
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dbt
+        run: |
+          python -m pip install --upgrade pip
+          pip install dbt-postgres==1.6.0
+
+      - name: Install dbt packages
+        run: |
+          cd dbt_project
+          dbt deps
+
+      - name: Run dbt tests
+        run: |
+          cd dbt_project
+          dbt seed
+          dbt run
+          dbt test
+
+  # Integration tests with Docker Compose
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start services
+        run: |
+          docker-compose up -d postgres marquez marquez-web
+          # Wait for services to be ready
+          timeout 60 bash -c 'until curl -f http://localhost:5000/api/v1/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:3000; do sleep 2; done'
+
+      - name: Run dbt transformations
+        run: |
+          docker-compose exec -T dbt dbt seed
+          docker-compose exec -T dbt dbt run
+          docker-compose exec -T dbt dbt test
+
+      - name: Run Python lineage jobs
+        run: |
+          docker-compose exec -T python-jobs python emit_lineage.py
+          docker-compose exec -T python-jobs python job_transform_orders.py
+
+      - name: Run integration tests
+        run: |
+          docker-compose exec -T python-jobs pytest lineage/tests/test_emit_lineage.py -m integration -v
+
+      - name: Verify lineage in Marquez
+        run: |
+          # Check that datasets exist
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets
+          
+          # Check that jobs exist
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/jobs
+          
+          # Check specific datasets
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets/raw_customers
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets/raw_orders
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets/stg_orders
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets/dim_customers
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets/fct_orders
+
+      - name: Stop services
+        if: always()
+        run: |
+          docker-compose down -v
+
+  # Security scan
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety bandit
+
+      - name: Run safety check
+        run: |
+          safety check -r lineage/python_jobs/requirements.txt
+
+      - name: Run bandit security scan
+        run: |
+          bandit -r lineage/python_jobs/ -f json -o bandit-report.json || true
+
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+
+  # Build and test Docker images
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build dbt image
+        run: |
+          cd dbt_project
+          docker build -t data-lineage-audit-dbt:test .
+
+      - name: Build Python jobs image
+        run: |
+          cd lineage/python_jobs
+          docker build -t data-lineage-audit-python:test .
+
+      - name: Build Airflow image
+        run: |
+          cd lineage/airflow
+          docker build -t data-lineage-audit-airflow:test .
+
+      - name: Test Docker images
+        run: |
+          # Test dbt image
+          docker run --rm data-lineage-audit-dbt:test dbt --version
+          
+          # Test Python jobs image
+          docker run --rm data-lineage-audit-python:test python --version
+          
+          # Test Airflow image
+          docker run --rm data-lineage-audit-airflow:test airflow version
+
+  # End-to-end test
+  e2e-test:
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests, dbt-tests, docker-build]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start all services
+        run: |
+          docker-compose up -d
+          
+          # Wait for all services to be ready
+          timeout 120 bash -c 'until curl -f http://localhost:5000/api/v1/health; do sleep 5; done'
+          timeout 120 bash -c 'until curl -f http://localhost:3000; do sleep 5; done'
+          timeout 120 bash -c 'until curl -f http://localhost:8080/health; do sleep 5; done'
+
+      - name: Run complete data pipeline
+        run: |
+          # Run dbt transformations
+          docker-compose exec -T dbt dbt seed
+          docker-compose exec -T dbt dbt run
+          docker-compose exec -T dbt dbt test
+          
+          # Run Python lineage jobs
+          docker-compose exec -T python-jobs python emit_lineage.py
+          docker-compose exec -T python-jobs python job_transform_orders.py
+          
+          # Run Airflow DAG (if enabled)
+          # docker-compose exec -T airflow airflow dags trigger dbt_daily_lineage
+
+      - name: Verify complete lineage
+        run: |
+          # Check Marquez UI is accessible
+          curl -f http://localhost:3000
+          
+          # Check Marquez API
+          curl -f http://localhost:5000/api/v1/health
+          
+          # Verify datasets and jobs exist
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/jobs
+          
+          # Check specific lineage relationships
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets/raw_customers/lineage
+          curl -f http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets/raw_orders/lineage
+
+      - name: Generate test report
+        run: |
+          echo "# Data Lineage & Audit Trail - E2E Test Report" > test-report.md
+          echo "" >> test-report.md
+          echo "## Services Status" >> test-report.md
+          echo "- Marquez API: $(curl -s http://localhost:5000/api/v1/health | jq -r '.status')" >> test-report.md
+          echo "- Marquez UI: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000)" >> test-report.md
+          echo "- Airflow UI: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/health)" >> test-report.md
+          echo "" >> test-report.md
+          echo "## Datasets" >> test-report.md
+          curl -s http://localhost:5000/api/v1/namespaces/data-lineage-audit/datasets | jq -r '.datasets[].name' >> test-report.md
+          echo "" >> test-report.md
+          echo "## Jobs" >> test-report.md
+          curl -s http://localhost:5000/api/v1/namespaces/data-lineage-audit/jobs | jq -r '.jobs[].name' >> test-report.md
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-test-report
+          path: test-report.md
+
+      - name: Stop services
+        if: always()
+        run: |
+          docker-compose down -v
+
+  # Deploy to staging (if on main branch)
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [e2e-test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your deployment logic here
+          # This could include:
+          # - Building and pushing Docker images to registry
+          # - Deploying to Kubernetes cluster
+          # - Updating staging environment configuration
+          echo "Staging deployment completed!"

@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant User
+    participant Airflow
+    participant dbt
+    participant Python
+    participant Marquez
+    participant PostgreSQL
+    
+    User->>Airflow: Trigger DAG
+    Airflow->>dbt: Run dbt seed
+    dbt->>PostgreSQL: Load seed data
+    dbt->>Marquez: Emit lineage events
+    
+    Airflow->>dbt: Run dbt run
+    dbt->>PostgreSQL: Execute transformations
+    dbt->>Marquez: Emit lineage events
+    
+    Airflow->>dbt: Run dbt test
+    dbt->>PostgreSQL: Run data quality tests
+    dbt->>Marquez: Emit lineage events
+    
+    Airflow->>Python: Run Python jobs
+    Python->>PostgreSQL: Read/Write data
+    Python->>Marquez: Emit custom lineage
+    
+    Airflow->>Marquez: Check lineage completeness
+    Marquez->>Airflow: Return lineage status
+    
+    User->>Marquez: View lineage graph
+    Marquez->>User: Display lineage visualization

@@ -1,0 +1,49 @@
+name: 'data_lineage_audit'
+version: '1.0.0'
+config-version: 2
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'data_lineage_audit'
+
+# These configurations specify where dbt should look for different types of files.
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"  # directory which will store compiled SQL files
+clean-targets:         # directories to be removed by `dbt clean`
+  - "target"
+  - "dbt_packages"
+
+# Configuring models
+models:
+  data_lineage_audit:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
+
+# Configuring seeds
+seeds:
+  data_lineage_audit:
+    +column_types:
+      customer_id: integer
+      order_id: integer
+      order_date: date
+      amount: decimal(10,2)
+      status: varchar(50)
+
+# Configuring tests
+tests:
+  data_lineage_audit:
+    +store_failures: true
+
+# Packages
+packages:
+  - package: dbt-labs/dbt_utils
+    version: 1.1.1
+  - package: calogica/dbt_expectations
+    version: 0.10.1
