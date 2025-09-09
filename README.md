@@ -24,6 +24,29 @@ This project demonstrates a complete data lineage solution with:
 - **Marquez Configuration**: Custom configuration for database connectivity
 - **Docker Services**: Orchestrated services for easy deployment
 
+### Available Jobs
+
+The project includes several example jobs that demonstrate different data lineage scenarios:
+
+1. **Customer Data Processing** (`emit_lineage.py`)
+   - Simple ETL job processing customer data
+   - Input: raw_customers → Output: processed_customers
+
+2. **Order Processing** (`order_processing.py`)
+   - Complex job with multiple inputs and outputs
+   - Inputs: raw_orders, customer_master, product_catalog
+   - Outputs: enriched_orders, order_summary
+
+3. **Financial Data Processing** (`financial_processing.py`)
+   - Financial transactions with currency conversion
+   - Inputs: raw_transactions, account_master, exchange_rates
+   - Outputs: processed_transactions, daily_account_summary, fraud_indicators
+
+4. **Data Quality Monitoring** (`data_quality_monitoring.py`)
+   - Monitors data quality across multiple datasets
+   - Inputs: raw_customers, raw_orders, raw_transactions
+   - Outputs: data_quality_report, data_lineage_summary, quality_alerts
+
 ## Quick Start
 
 ### Prerequisites
@@ -75,8 +98,15 @@ cd lineage/python_jobs
 # Activate virtual environment
 source venv/bin/activate
 
-# Run the main lineage job
-python emit_lineage.py
+# Run individual jobs
+python emit_lineage.py                    # Customer data processing
+python order_processing.py                # Order processing with multiple inputs
+python financial_processing.py            # Financial data with currency conversion
+python data_quality_monitoring.py         # Data quality monitoring
+
+# Or run all jobs at once
+cd ../..
+python run_all_jobs.py
 ```
 
 ### Access the Web Interface
