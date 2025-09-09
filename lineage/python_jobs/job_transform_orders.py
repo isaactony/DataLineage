@@ -14,9 +14,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import pandas as pd
-from sqlalchemy import create_engine, text
-
 from emit_lineage import LineageEmitter
+from sqlalchemy import create_engine, text
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
