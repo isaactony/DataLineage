@@ -3,47 +3,56 @@
 Data Lake Ingestion Pipeline - Demonstrates data lake lineage tracking
 """
 
+import logging
 import os
 import uuid
-import logging
 from datetime import datetime
-from typing import List, Dict
+from typing import Dict, List
+
 from openlineage.client import OpenLineageClient
-from openlineage.client.facet import SchemaDatasetFacet, ColumnLineageDatasetFacet
-from openlineage.client.run import RunEvent, RunState, Run, Job
+from openlineage.client.facet import ColumnLineageDatasetFacet, SchemaDatasetFacet
+from openlineage.client.run import Job, Run, RunEvent, RunState
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class DataLakeLineageEmitter:
     """Handles emission of lineage events for data lake ingestion."""
-    
+
     def __init__(self, marquez_url: str = None, namespace: str = "data-lineage-audit"):
         self.namespace = namespace
-        self.marquez_url = marquez_url or os.getenv("MARQUEZ_URL", "http://localhost:5002")
-        
+        self.marquez_url = marquez_url or os.getenv(
+            "MARQUEZ_URL", "http://localhost:5002"
+        )
+
         # Initialize OpenLineage client with HTTP transport
-        os.environ['OPENLINEAGE_URL'] = self.marquez_url
-        os.environ['OPENLINEAGE_NAMESPACE'] = self.namespace
-        os.environ['OPENLINEAGE_ENDPOINT'] = f"{self.marquez_url}/api/v1/lineage"
+        os.environ["OPENLINEAGE_URL"] = self.marquez_url
+        os.environ["OPENLINEAGE_NAMESPACE"] = self.namespace
+        os.environ["OPENLINEAGE_ENDPOINT"] = f"{self.marquez_url}/api/v1/lineage"
         self.client = OpenLineageClient()
-        
-        logger.info(f"Initialized DataLakeLineageEmitter with Marquez URL: {self.marquez_url}")
-    
-    def emit_job_start(self, job_name: str, run_id: str, inputs: List[Dict] = None, 
-                      outputs: List[Dict] = None, job_description: str = None) -> None:
+
+        logger.info(
+            f"Initialized DataLakeLineageEmitter with Marquez URL: {self.marquez_url}"
+        )
+
+    def emit_job_start(
+        self,
+        job_name: str,
+        run_id: str,
+        inputs: List[Dict] = None,
+        outputs: List[Dict] = None,
+        job_description: str = None,
+    ) -> None:
         """Emit job start event."""
-        
+
         # Create run
         run = Run(runId=run_id)
-        
+
         # Create job
-        job = Job(
-            namespace=self.namespace,
-            name=job_name
-        )
-        
+        job = Job(namespace=self.namespace, name=job_name)
+
         # Create input datasets
         input_datasets = []
         if inputs:
@@ -58,10 +67,10 @@ class DataLakeLineageEmitter:
                                 for field in input_data.get("schema", [])
                             ]
                         )
-                    }
+                    },
                 }
                 input_datasets.append(dataset)
-        
+
         # Create output datasets
         output_datasets = []
         if outputs:
@@ -76,10 +85,10 @@ class DataLakeLineageEmitter:
                                 for field in output_data.get("schema", [])
                             ]
                         )
-                    }
+                    },
                 }
                 output_datasets.append(dataset)
-        
+
         # Create run event
         event = RunEvent(
             eventType=RunState.START,
@@ -88,19 +97,24 @@ class DataLakeLineageEmitter:
             job=job,
             inputs=input_datasets,
             outputs=output_datasets,
-            producer="https://github.com/OpenLineage/OpenLineage/tree/main/integration/python"
+            producer="https://github.com/OpenLineage/OpenLineage/tree/main/integration/python",
         )
-        
+
         self.client.emit(event)
         logger.info(f"Emitted job start event for {job_name} (run_id: {run_id})")
-    
-    def emit_job_complete(self, job_name: str, run_id: str, inputs: List[Dict] = None, 
-                         outputs: List[Dict] = None) -> None:
+
+    def emit_job_complete(
+        self,
+        job_name: str,
+        run_id: str,
+        inputs: List[Dict] = None,
+        outputs: List[Dict] = None,
+    ) -> None:
         """Emit job complete event."""
-        
+
         run = Run(runId=run_id)
         job = Job(namespace=self.namespace, name=job_name)
-        
+
         # Create input datasets
         input_datasets = []
         if inputs:
@@ -115,10 +129,10 @@ class DataLakeLineageEmitter:
                                 for field in input_data.get("schema", [])
                             ]
                         )
-                    }
+                    },
                 }
                 input_datasets.append(dataset)
-        
+
         # Create output datasets
         output_datasets = []
         if outputs:
@@ -133,10 +147,10 @@ class DataLakeLineageEmitter:
                                 for field in output_data.get("schema", [])
                             ]
                         )
-                    }
+                    },
                 }
                 output_datasets.append(dataset)
-        
+
         # Create run event
         event = RunEvent(
             eventType=RunState.COMPLETE,
@@ -145,38 +159,39 @@ class DataLakeLineageEmitter:
             job=job,
             inputs=input_datasets,
             outputs=output_datasets,
-            producer="https://github.com/OpenLineage/OpenLineage/tree/main/integration/python"
+            producer="https://github.com/OpenLineage/OpenLineage/tree/main/integration/python",
         )
-        
+
         self.client.emit(event)
         logger.info(f"Emitted job complete event for {job_name} (run_id: {run_id})")
-    
+
     def emit_job_fail(self, job_name: str, run_id: str, error_message: str) -> None:
         """Emit job fail event."""
-        
+
         run = Run(runId=run_id)
         job = Job(namespace=self.namespace, name=job_name)
-        
+
         event = RunEvent(
             eventType=RunState.FAIL,
             eventTime=datetime.now().isoformat(),
             run=run,
             job=job,
-            producer="https://github.com/OpenLineage/OpenLineage/tree/main/integration/python"
+            producer="https://github.com/OpenLineage/OpenLineage/tree/main/integration/python",
         )
-        
+
         self.client.emit(event)
         logger.info(f"Emitted job fail event for {job_name} (run_id: {run_id})")
 
+
 def main():
     """Main function to run data lake ingestion pipeline."""
-    
+
     # Initialize lineage emitter
     emitter = DataLakeLineageEmitter()
-    
+
     # Generate unique run ID
     run_id = str(uuid.uuid4())
-    
+
     try:
         # Define input datasets
         inputs = [
@@ -188,8 +203,8 @@ def main():
                     {"name": "timestamp", "type": "TIMESTAMP"},
                     {"name": "status_code", "type": "INTEGER"},
                     {"name": "response_time", "type": "INTEGER"},
-                    {"name": "data_source", "type": "VARCHAR"}
-                ]
+                    {"name": "data_source", "type": "VARCHAR"},
+                ],
             },
             {
                 "name": "log_files",
@@ -200,8 +215,8 @@ def main():
                     {"name": "timestamp", "type": "TIMESTAMP"},
                     {"name": "service_name", "type": "VARCHAR"},
                     {"name": "hostname", "type": "VARCHAR"},
-                    {"name": "user_id", "type": "VARCHAR"}
-                ]
+                    {"name": "user_id", "type": "VARCHAR"},
+                ],
             },
             {
                 "name": "sensor_data",
@@ -212,8 +227,8 @@ def main():
                     {"name": "unit", "type": "VARCHAR"},
                     {"name": "location", "type": "VARCHAR"},
                     {"name": "timestamp", "type": "TIMESTAMP"},
-                    {"name": "battery_level", "type": "DECIMAL"}
-                ]
+                    {"name": "battery_level", "type": "DECIMAL"},
+                ],
             },
             {
                 "name": "social_media_feeds",
@@ -224,11 +239,11 @@ def main():
                     {"name": "content", "type": "VARCHAR"},
                     {"name": "sentiment", "type": "VARCHAR"},
                     {"name": "engagement_metrics", "type": "JSON"},
-                    {"name": "timestamp", "type": "TIMESTAMP"}
-                ]
-            }
+                    {"name": "timestamp", "type": "TIMESTAMP"},
+                ],
+            },
         ]
-        
+
         # Define output datasets
         outputs = [
             {
@@ -241,8 +256,8 @@ def main():
                     {"name": "file_path", "type": "VARCHAR"},
                     {"name": "file_size", "type": "BIGINT"},
                     {"name": "checksum", "type": "VARCHAR"},
-                    {"name": "partition_date", "type": "DATE"}
-                ]
+                    {"name": "partition_date", "type": "DATE"},
+                ],
             },
             {
                 "name": "structured_data_lake",
@@ -253,8 +268,8 @@ def main():
                     {"name": "processing_timestamp", "type": "TIMESTAMP"},
                     {"name": "data_quality_score", "type": "DECIMAL"},
                     {"name": "record_count", "type": "INTEGER"},
-                    {"name": "partition_date", "type": "DATE"}
-                ]
+                    {"name": "partition_date", "type": "DATE"},
+                ],
             },
             {
                 "name": "data_lake_metadata",
@@ -265,8 +280,8 @@ def main():
                     {"name": "last_updated", "type": "TIMESTAMP"},
                     {"name": "data_freshness", "type": "INTEGER"},
                     {"name": "retention_policy", "type": "VARCHAR"},
-                    {"name": "access_permissions", "type": "VARCHAR"}
-                ]
+                    {"name": "access_permissions", "type": "VARCHAR"},
+                ],
             },
             {
                 "name": "data_lineage_tracking",
@@ -277,44 +292,44 @@ def main():
                     {"name": "data_flow_path", "type": "VARCHAR"},
                     {"name": "processing_time", "type": "INTEGER"},
                     {"name": "success_rate", "type": "DECIMAL"},
-                    {"name": "tracking_timestamp", "type": "TIMESTAMP"}
-                ]
-            }
+                    {"name": "tracking_timestamp", "type": "TIMESTAMP"},
+                ],
+            },
         ]
-        
+
         # Emit job start
         emitter.emit_job_start(
             job_name="data_lake_ingestion",
             run_id=run_id,
             inputs=inputs,
             outputs=outputs,
-            job_description="Ingest data from multiple sources into data lake with schema evolution"
+            job_description="Ingest data from multiple sources into data lake with schema evolution",
         )
-        
+
         logger.info("Ingesting data into data lake...")
-        
+
         # Simulate processing time
         import time
+
         time.sleep(4)
-        
+
         # Emit job complete
         emitter.emit_job_complete(
             job_name="data_lake_ingestion",
             run_id=run_id,
             inputs=inputs,
-            outputs=outputs
+            outputs=outputs,
         )
-        
+
         logger.info("Data lake ingestion completed successfully!")
-        
+
     except Exception as e:
         logger.error(f"Data lake ingestion failed: {str(e)}")
         emitter.emit_job_fail(
-            job_name="data_lake_ingestion",
-            run_id=run_id,
-            error_message=str(e)
+            job_name="data_lake_ingestion", run_id=run_id, error_message=str(e)
         )
         raise
+
 
 if __name__ == "__main__":
     main()
